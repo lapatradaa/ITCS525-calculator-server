@@ -83,8 +83,10 @@ def calculate(expr: str):
 #-------------------------------------------------------------------------------------------------------
 # TODO GET /hisory
 @app.get("/history")
-def get_history(limit: int = 50):
-    return list(history)[-limit:]
+def get_history(n: int = None):
+    if n is not None:
+        return history[-n:]
+    return history
 
 # TODO DELETE /history
 @app.delete("/history")

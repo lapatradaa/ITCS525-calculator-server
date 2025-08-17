@@ -8,8 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from asteval import Interpreter
 
-from calculator import expand_percent  # expects to turn "10%" -> "(10/100)"
-
+from calculator import expand_percent 
 HISTORY_MAX = 1000
 history = deque(maxlen=HISTORY_MAX)
 
@@ -84,9 +83,10 @@ def calculate(expr: str):
 # TODO GET /hisory
 @app.get("/history")
 def get_history(n: int = None):
-    if n is not None:
-        return history[-n:]
-    return history
+    """Get the last n history entries, or all if n is None."""
+    if n is not None and n > 0:
+        return list(history)[-n:]
+    return list(history)
 
 # TODO DELETE /history
 @app.delete("/history")

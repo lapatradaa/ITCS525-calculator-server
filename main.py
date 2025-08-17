@@ -56,7 +56,7 @@ def calculate(expr: str):
             msg = "; ".join(str(e.get_error()) for e in aeval.error)
             aeval.error.clear()
             history.append({
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "expr": expr,
                 "result": "",
                 "error": msg,
@@ -64,7 +64,7 @@ def calculate(expr: str):
             return {"ok": False, "expr": expr, "result": "", "error": msg}
 
         history.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "expr": expr,
             "result": result,
         })

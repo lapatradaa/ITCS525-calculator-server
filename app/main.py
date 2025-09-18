@@ -1,16 +1,15 @@
-import re
-import unicodedata
-import math
+import re, unicodedata, math
 from collections import deque
 from datetime import datetime, timezone
-
-from fastapi import FastAPI
+from fastapi import FastAPI, Body
 from fastapi.middleware.cors import CORSMiddleware
 from asteval import Interpreter
+from app.dependencies import expand_percent
+from app.schema import ExpressionIn as Expression, ExpressionOut as CalculatorLog
+from app.routers import calculator, history
 
-from calculator import expand_percent 
 HISTORY_MAX = 1000
-history = deque(maxlen=HISTORY_MAX)
+calc_history = deque(maxlen=HISTORY_MAX)
 
 app = FastAPI(title="Mini Calculator API")
 
@@ -20,6 +19,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include routers
+app.include_router(calculator.router, prefix="/calculator", tags=["calculator"])
+app.include_router(history.router, prefix="/history", tags=["history"])
 
 # safe evaluator (+ constants)
 aeval = Interpreter(minimal=True, usersyms={"pi": math.pi, "e": math.e})
@@ -38,12 +41,17 @@ def _implicit_mult_after_paren(s: str) -> str:
 
 
 # --- endpoints ---------------------------------------------------------------
+# Updated endpoint to accept a Pydantic model for proper validation
 @app.post("/calculate")
-def calculate(expr: str):
+def calculate(expression: Expression):
+    expr = expression.expr
     try:
         # 1) normalize pretty ops
         expr = _normalize_ops(expr)
-
+        # Added check for invalid consecutive plus signs
+        if "++" in expr:
+            raise ValueError("Invalid expression")
+        
         # 2) expand percent to (.../100)
         code = expand_percent(expr)
 
@@ -55,7 +63,7 @@ def calculate(expr: str):
         if aeval.error:
             msg = "; ".join(str(e.get_error()) for e in aeval.error)
             aeval.error.clear()
-            history.append({
+            calc_history.append({
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "expr": expr,
                 "result": "",
@@ -63,7 +71,7 @@ def calculate(expr: str):
             })
             return {"ok": False, "expr": expr, "result": "", "error": msg}
 
-        history.append({
+        calc_history.append({
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "expr": expr,
             "result": result,
@@ -71,7 +79,7 @@ def calculate(expr: str):
         return {"ok": True, "expr": expr, "result": result, "error": ""}
 
     except Exception as e:
-        history.append({
+        calc_history.append({
             "timestamp": datetime.utcnow().isoformat(),
             "expr": expr,
             "result": "",
@@ -79,17 +87,14 @@ def calculate(expr: str):
         })
         return {"ok": False, "expr": expr, "result": "", "error": str(e)}
 
-#-------------------------------------------------------------------------------------------------------
-# TODO GET /hisory
 @app.get("/history")
 def get_history(n: int = None):
     """Get the last n history entries, or all if n is None."""
     if n is not None and n > 0:
-        return list(history)[-n:]
-    return list(history)
+        return list(calc_history)[-n:]
+    return list(calc_history)
 
-# TODO DELETE /history
 @app.delete("/history")
 def clear_history():
-    history.clear()
+    calc_history.clear()
     return {"ok": True, "cleared": True}
